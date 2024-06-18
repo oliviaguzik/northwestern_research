@@ -17,7 +17,7 @@ RUN python3 --version && java -version
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --upgrade pip
-RUN pip install mediapipe numpy
+RUN pip install opencv-python-headless mediapipe numpy protobuf
 
 # Download the pose_landmarker task model
 RUN wget -O /opt/venv/pose_landmarker.task -q https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task
@@ -25,8 +25,8 @@ RUN wget -O /opt/venv/pose_landmarker.task -q https://storage.googleapis.com/med
 # Set the working directory
 WORKDIR /usr/src/app
 
-# Copy the current directory contents into the container at /usr/src/app
-COPY . .
+# # Copy the current directory contents into the container at /usr/src/app
+# COPY . .
 
 # Command to run the application (you can customize this as needed)
-CMD ["python3", "./HelloWorld.py"]
+CMD ["/bin/bash"]

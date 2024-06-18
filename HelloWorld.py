@@ -2,16 +2,19 @@ from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
 import numpy as np
 import cv2
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+import os
 
+# Function to draw landmarks on image
 def draw_landmarks_on_image(rgb_image, detection_result):
     pose_landmarks_list = detection_result.pose_landmarks
     annotated_image = np.copy(rgb_image)
 
-    # Loop through the detected poses to visualize.
     for idx in range(len(pose_landmarks_list)):
         pose_landmarks = pose_landmarks_list[idx]
 
-        # Draw the pose landmarks.
         pose_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
         pose_landmarks_proto.landmark.extend([
             landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in pose_landmarks
@@ -23,34 +26,61 @@ def draw_landmarks_on_image(rgb_image, detection_result):
             solutions.drawing_styles.get_default_pose_landmarks_style())
     return annotated_image
 
-# STEP 1: Import the necessary modules.
-import mediapipe as mp
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
-
-# STEP 2: Create an PoseLandmarker object.
+# Set up MediaPipe PoseLandmarker
 base_options = python.BaseOptions(model_asset_path='/opt/venv/pose_landmarker.task')
 options = vision.PoseLandmarkerOptions(
     base_options=base_options,
     output_segmentation_masks=True)
 detector = vision.PoseLandmarker.create_from_options(options)
 
-# STEP 3: Load the input image.
-image = mp.Image.create_from_file("image.jpg")
+# Open the video file
+video_path = 'input_video.mp4'
+cap = cv2.VideoCapture(video_path)
 
-# STEP 4: Detect pose landmarks from the input image.
-detection_result = detector.detect(image)
+# Check if the video was opened successfully
+if not cap.isOpened():
+    print("Error opening video file")
+    exit()
 
-# STEP 5: Process the detection result. In this case, visualize it.
-annotated_image = draw_landmarks_on_image(image.numpy_view(), detection_result)
+# Create a directory to save the frames
+output_dir = 'output_frames'
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
 
-# Save the annotated image to a file
-cv2.imwrite("annotated_image.jpg", cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
+# Process each frame
+frame_count = 0
+fps = cap.get(cv2.CAP_PROP_FPS)
 
-segmentation_mask = detection_result.segmentation_masks[0].numpy_view()
-visualized_mask = np.repeat(segmentation_mask[:, :, np.newaxis], 3, axis=2) * 255
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
 
-# Save the segmentation mask to a file
-cv2.imwrite("segmentation_mask.jpg", visualized_mask)
+    # Calculate the timestamp
+    timestamp = frame_count / fps
 
-print("Annotated image and segmentation mask saved successfully.")
+    # Convert the frame to RGB
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+    # Create MediaPipe image object
+    image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+
+    # Detect pose landmarks
+    detection_result = detector.detect(image)
+
+    # Annotate the frame with landmarks
+    annotated_frame = draw_landmarks_on_image(rgb_frame, detection_result)
+
+    # Convert RGB frame back to BGR for OpenCV
+    annotated_frame_bgr = cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR)
+
+    # Save the annotated frame as an image file with the timestamp
+    output_filename = os.path.join(output_dir, f'frame_{frame_count:04d}_timestamp_{timestamp:.2f}.jpg')
+    cv2.imwrite(output_filename, annotated_frame_bgr)
+
+    frame_count += 1
+
+# Release everything when done
+cap.release()
+
+print(f"Annotated frames saved successfully in {output_dir}.")
